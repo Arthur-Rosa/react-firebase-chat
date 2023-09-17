@@ -1,24 +1,126 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useRef, useState } from "react";
+import "./App.css";
+
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
+import "firebase/compat/auth";
+
+import { useAuthState } from "react-firebase-hooks/auth";
+import { useCollectionData } from "react-firebase-hooks/firestore";
+
+firebase.initializeApp({
+  apiKey: "AIzaSyBGJ5PDZUh0SqHrUGg1jSNXy51mOn8idfE",
+  authDomain: "chat-demo-76d95.firebaseapp.com",
+  projectId: "chat-demo-76d95",
+  storageBucket: "chat-demo-76d95.appspot.com",
+  messagingSenderId: "393350479101",
+  appId: "1:393350479101:web:86ec6de75728a943041294",
+});
+
+const auth = firebase.auth();
+const firestore = firebase.firestore();
 
 function App() {
+  const [user] = useAuthState(auth);
+
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        <SignOut />
       </header>
+
+      <section>{user ? <ChatRoom /> : <SignIn />}</section>
     </div>
+  );
+}
+
+function SignIn() {
+  const signInWithGoogle = () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider);
+  };
+
+  return (
+    <>
+      <button className="sign-in" onClick={signInWithGoogle}>
+        Sign in with Google
+      </button>
+      <p>
+        Do not violate the community guidelines or you will be banned for life!
+      </p>
+    </>
+  );
+}
+
+function SignOut() {
+  return (
+    auth.currentUser && (
+      <button className="sign-out" onClick={() => auth.signOut()}>
+        Sign Out
+      </button>
+    )
+  );
+}
+function ChatRoom() {
+  const dummy = useRef();
+  const messagesRef = firestore.collection("messages");
+  const query = messagesRef.orderBy("createdAt").limit(25);
+
+  const [messages] = useCollectionData(query, { idField: "id" });
+
+  const [formValue, setFormValue] = useState("");
+
+  const sendMessage = async (e) => {
+    e.preventDefault();
+
+    const { uid, photoURL } = auth.currentUser;
+
+    await messagesRef.add({
+      text: formValue,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      uid,
+      photoURL,
+    });
+
+    setFormValue("");
+    if (dummy.current) {
+      dummy.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+  return (
+    <>
+      <div>
+        {messages &&
+          messages.map((msg) => <ChatMessage key={msg.id} message={msg} />)}
+      </div>
+
+      <form onSubmit={sendMessage}>
+        <input
+          value={formValue}
+          onChange={(e) => setFormValue(e.target.value)}
+        />
+        <button type="submit">send!</button>
+      </form>
+    </>
+  );
+}
+
+function ChatMessage(props) {
+  const { text, uid, photoURL } = props.message;
+
+  const messageClass = uid === auth.currentUser.uid ? "sent" : "received";
+
+  return (
+    <>
+      <div className={`message ${messageClass}`}>
+        <img
+          src={
+            photoURL || "https://api.adorable.io/avatars/23/abott@adorable.png"
+          }
+        />
+        <p>{text}</p>
+      </div>
+    </>
   );
 }
 
